@@ -52,15 +52,15 @@ namespace EVARepairs
 
         public void EnableModule()
         {
-            if (!reactionWheel.enabled)
-            {
-                reactionWheel.enabled = true;
-                reactionWheel.isEnabled = true;
-                reactionWheel.RollTorque = rollTorque;
-                reactionWheel.PitchTorque = pitchTorque;
-                reactionWheel.YawTorque = yawTorque;
-                reactionWheel.OnActive();
-            }
+            // DisableModule may zero a single axis (Pitch/Yaw/Roll) while leaving reactionWheel.enabled
+            // true, so guarding the restore behind `!reactionWheel.enabled` left single-axis failures
+            // permanently broken after a repair. Always restore enabled state AND all three torques.
+            reactionWheel.enabled = true;
+            reactionWheel.isEnabled = true;
+            reactionWheel.RollTorque = rollTorque;
+            reactionWheel.PitchTorque = pitchTorque;
+            reactionWheel.YawTorque = yawTorque;
+            reactionWheel.OnActive();
         }
 
         public bool isEnabled
