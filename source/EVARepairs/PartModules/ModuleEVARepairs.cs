@@ -85,6 +85,9 @@ namespace EVARepairs
 
         // Bonus to activation roll when throttling engines up
         const int kThrottleActivationBonus = 25;
+
+        // Minimum seconds between reliability display refreshes.
+        const float kDisplayRefreshInterval = 1f;
         #endregion
 
         #region KSPEvents
@@ -223,6 +226,11 @@ namespace EVARepairs
         #region Housekeeping
         [KSPField(groupName = "#LOC_EVAREPAIRS_groupTitleName", groupDisplayName = "#LOC_EVAREPAIRS_groupTitleName")]
         double mtbfRateMultiplier = 1f;
+
+        // Timestamp of the last reliability display refresh. Building the
+        // localized display strings every physics tick adds up fast on large
+        // vessels, and the PAW can't usefully show sub-second changes.
+        float lastDisplayUpdate = float.NegativeInfinity;
 
         [KSPField(groupName = "#LOC_EVAREPAIRS_groupTitleName", groupDisplayName = "#LOC_EVAREPAIRS_groupTitleName")]
         bool partDidFail = false;
@@ -645,9 +653,13 @@ namespace EVARepairs
 
         protected virtual void updateMaintenanceStatus()
         {
-            // Allow maintenance
+            // Allow maintenance. Only format the event name on the transition
+            // into the maintenance band; re-formatting it every update wastes
+            // a Localizer.Format call per part per physics tick. This is safe
+            // because guiName has no time-varying content (only the part
+            // title), and every site that sets active = true also sets guiName.
             double maintenancePercent = (currentMTBF / (mtbf * 3600f));
-            if (maintenancePercent <= 0.2f && maintenancePercent > 0.001f)
+            if (maintenancePercent <= 0.2f && maintenancePercent > 0.001f && !Events["RepairPart"].active)
             {
                 Events["RepairPart"].guiName = Localizer.Format("#LOC_EVAREPAIRS_servicePart", new string[1] { part.partInfo.title });
                 Events["RepairPart"].active = true;
@@ -964,8 +976,12 @@ namespace EVARepairs
             if (shouldCheckActivation())
                 PerformActivationCheck();
 
-            // Update reliability display
-            updateReliabilityDisplay();
+            // Update reliability display, at most once per kDisplayRefreshInterval.
+            if (Time.unscaledTime - lastDisplayUpdate >= kDisplayRefreshInterval)
+            {
+                lastDisplayUpdate = Time.unscaledTime;
+                updateReliabilityDisplay();
+            }
 
             // Make sure player can't retract/extend the wheel/leg
             if (EVARepairsScenario.landingGearCanFail && wheelDeployment != null && (needsMaintenance || partWornOut))
